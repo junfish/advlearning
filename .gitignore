@@ -1,0 +1,5 @@
+/datasets/*
+/model_weights/*
+/__pycache__/*
+!.gitignore
+.DS_Store

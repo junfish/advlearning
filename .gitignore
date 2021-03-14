@@ -1,3 +1,4 @@
+/.idea/*
 /datasets/*
 /model_weights/*
 /__pycache__/*

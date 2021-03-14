@@ -5,6 +5,7 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
+import pdb
 
 class Normalize(nn.Module):
     # Using mean and std calculated from ImageNet as default
@@ -27,13 +28,17 @@ def my_transform(new_size = 224):
         transforms.ToTensor(),
         ])
 
+def channel_duplicate():
+    pass
+
+
 class My_Dataset(Dataset):
     def __init__(self, Dataset, transform = my_transform):
 
         if isinstance(Dataset.data, np.ndarray):
             self.data = Dataset.data
-        else: # torch.Tensor
-            self.data = Dataset.data.numpy()
+        else: # torch.Tensor # MNIST
+            self.data = np.expand_dims(Dataset.data.numpy(), axis = 3).repeat(3, axis = 3)
 
         if len(self.data.shape) < 4:
             self.data = self.data[:, :, :, None]
@@ -53,7 +58,6 @@ class My_Dataset(Dataset):
         ndarray_image = self.data[idx, :, :, :]
         PIL_image = Image.fromarray(ndarray_image.astype(np.uint8))
         transform_image = self.transform(new_size = 224)(PIL_image)
-
         target_class = self.targets[idx]
 
         return transform_image, target_class
@@ -74,6 +78,7 @@ def visualize(data_array):
 if __name__ == "__main__":
     a = torch.Tensor([2, 3, 4, 5])
     b = np.array([[1, 2, 3, 4], [2, 3, 4, 5]])
+    print(np.expand_dims(b, axis = 2).repeat(3, axis = 0))
     print(np.newaxis)
     print(len(b[:, None, :, None].shape))
     print(len(b.shape))

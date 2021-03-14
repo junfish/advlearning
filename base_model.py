@@ -4,10 +4,11 @@ import torchvision
 from torchsummary import summary
 
 class myResNet18(nn.Module):
-    def __init__(self, pretrained = True, input_channels = 3, num_classes = 10):
+    def __init__(self, pretrained = True, num_classes = 10):
         super(myResNet18, self).__init__()
         raw_resnet18 = torchvision.models.resnet18(pretrained = pretrained)
-        self.conv1 = nn.Conv2d(input_channels, raw_resnet18.inplanes, kernel_size = 7, stride = 2, padding = 3, bias = False)
+        # self.conv1 = nn.Conv2d(input_channels, raw_resnet18.inplanes, kernel_size = 7, stride = 2, padding = 3, bias = False)
+        self.conv1 = raw_resnet18.conv1
         self.bn1 = raw_resnet18.bn1
         self.relu = raw_resnet18.relu
         self.maxpool = raw_resnet18.maxpool

@@ -1,6 +1,7 @@
 import torch.utils.data as data
 import base_model
 import pdb
+
 from torchvision import transforms, datasets
 from torch.autograd import Variable
 from PIL import Image
@@ -8,7 +9,7 @@ from data_process import *
 from experiment_operator import Experiment_Operator
 
 if __name__ == "__main__":
-    experiment_settings = {"dataset": "cifar10", "batch_size": 100, "lr": 0.1}
+    experiment_settings = {"dataset": "cifar10", "batch_size": 100, "normalize_by_self": True, "lr": 0.1}
 
     train_dset = datasets.CIFAR10(root='./datasets', train=True, download=False)
     test_dset = datasets.CIFAR10(root='./datasets', train=False, download=False)
@@ -16,10 +17,14 @@ if __name__ == "__main__":
         train_dset = datasets.MNIST(root='./datasets', train = True, download = False)
         test_dset = datasets.MNIST(root='./datasets', train = False, download = False)
 
-    my_model = base_model.myResNet18(pretrained = True, num_classes = 10)
+    my_model = base_model.myResNet18(pretrained = False, num_classes = 10)
 
     my_datasets = {"train": My_Dataset(train_dset, transform = train_transform()),
                    "test": My_Dataset(test_dset, transform = test_transform())}
+
+    datasets_mean, datasets_std = my_datasets["train"].compute()
+    print(datasets_mean)
+    print(datasets_std)
 
     my_morm = Normalize()
 

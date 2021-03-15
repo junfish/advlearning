@@ -43,11 +43,11 @@ class Experiment_Operator(object):
         if target_parameters:
             self.optimizer = optim.SGD(target_parameters, lr = self.scale * self.lr, momentum = 0.9)
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
-            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [150, 240, 300], gamma = 0.1)
+            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [135, 200, 300], gamma = 0.1)
         else:
             self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum = 0.9)
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
-            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [150, 240, 300], gamma = 0.1)
+            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [135, 240, 300], gamma = 0.1)
 
     def train(self, iterations = 100):
         '''

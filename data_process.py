@@ -9,6 +9,7 @@ import pdb
 
 class Normalize(nn.Module):
     # Using mean and std calculated from ImageNet as default
+    # ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
     def __init__(self, mean = torch.Tensor([0.485, 0.456, 0.406]), std = torch.Tensor([0.229, 0.224, 0.225])):
         super(Normalize, self).__init__()
         self.mean = mean
@@ -50,15 +51,17 @@ class My_Dataset(Dataset):
         if isinstance(Dataset.data, np.ndarray):
             self.data = Dataset.data
         else: # torch.Tensor # MNIST
-            self.data = np.expand_dims(Dataset.data.numpy(), axis = 3).repeat(3, axis = 3)
+            # self.data = np.expand_dims(Dataset.data.numpy(), axis = 3).repeat(3, axis = 3)
+            self.data = Dataset.data.numpy()
 
         if len(self.data.shape) < 4:
             self.data = self.data[:, :, :, None]
 
         self.targets = Dataset.targets
-        self.mean = torch.Tensor([0.485, 0.456, 0.406])
-        self.std = torch.Tensor([0.229, 0.224, 0.225])
-        self.dict = dict(zip(Dataset.class_to_idx.values(), Dataset.class_to_idx.keys()))
+        # we don't need mean & std here because we shouldn't normalize data here, see https://adversarial-ml-tutorial.org/introduction/
+        # self.mean = torch.Tensor([0.485, 0.456, 0.406])
+        # self.std = torch.Tensor([0.229, 0.224, 0.225])
+        self.dict = dict(zip(Dataset.class_to_idx.values(), Dataset.class_to_idx.keys())) # from class_to_idx to idx_to_class
         self.transform = transform
         self.num_images = self.data.shape[0]
 

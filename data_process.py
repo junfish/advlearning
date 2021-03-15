@@ -57,7 +57,7 @@ class My_Dataset(Dataset):
 
         ndarray_image = self.data[idx, :, :, :]
         PIL_image = Image.fromarray(ndarray_image.astype(np.uint8))
-        transform_image = self.transform(new_size = 224)(PIL_image)
+        transform_image = self.transform(PIL_image)
         target_class = self.targets[idx]
 
         return transform_image, target_class

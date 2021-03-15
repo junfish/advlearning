@@ -1,7 +1,6 @@
+!.gitignore
 /.idea/*
 /datasets/*
 /model_weights/*
 /__pycache__/*
-!.gitignore
-.idea
 .DS_Store

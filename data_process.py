@@ -24,9 +24,21 @@ class Normalize(nn.Module):
 
 def my_transform(new_size = 224):
     return transforms.Compose([
-        transforms.Resize(new_size),
+        transforms.Resize(new_size), # a time-consuming operation, should be avoided as possible.
         transforms.ToTensor(),
         ])
+
+def train_transform():
+    return transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        ])
+
+def test_transform():
+    return transforms.Compose([
+        transforms.ToTensor(),
+    ])
 
 def channel_duplicate():
     pass

@@ -12,19 +12,26 @@ from data_process import My_Dataset, Normalize, my_transform
 
 class Experiment_Operator(object):
 
-    def __init__(self, datasets_loaders, norm, model, batch_size, target_parameters = None, lr = 1e-1, scale = 1.0, is_BN = True, is_gpu = True):
+    def __init__(self, datasets_loaders, norm, model, batch_size, milestones, target_parameters = None, lr = 1e-1, scale = 1.0, is_BN = True, is_gpu = True):
         '''
         :param datasets_loaders:
+        :param norm:
         :param model:
         :param batch_size:
-        :param target_parameters: torch.Tensor with requires_grad = True, e.g., self.model.parameters()
+        :param milestones:
+        :param target_parameters:
         :param lr:
         :param scale:
+        :param is_BN:
+        :param is_gpu:
         '''
 
+        if milestones is None:
+            milestones = [135, 230, 300]
         self.train_loaders = datasets_loaders["train"]
         self.test_loaders = datasets_loaders["test"]
         self.batch_size = batch_size
+        self.milestones = milestones
         self.lr = lr
         self.scale = scale
         self.is_BN = is_BN
@@ -41,13 +48,13 @@ class Experiment_Operator(object):
         self.criterion = nn.CrossEntropyLoss()
 
         if target_parameters:
-            self.optimizer = optim.SGD(target_parameters, lr = self.scale * self.lr, momentum = 0.9)
+            self.optimizer = optim.SGD(target_parameters, lr = self.scale * self.lr, momentum = 0.9, weight_decay = 1e-5)
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
-            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [135, 200, 300], gamma = 0.1)
+            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = self.milestones, gamma = 0.1)
         else:
-            self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum = 0.9)
+            self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum = 0.9, weight_decay = 1e-4)
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
-            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = [135, 240, 300], gamma = 0.1)
+            self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = self.milestones, gamma = 0.1)
 
     def train(self, iterations = 100):
         '''
@@ -122,28 +129,33 @@ class Experiment_Operator(object):
         testing_loss /= (len(self.test_loaders) * self.batch_size)
         return training_loss, testing_loss, training_acc, testing_acc
 
-    def sample_attack_train(self, sample, epsilon = 2.0 / 255, iterations = 50):
+    def sample_attack_train(self, sample, sample_target, epsilon = 2.0 / 255, iterations = 50):
         '''
-        :param sample: a picture with the size of B * C * H * W, here the B = 1
+        :param sample:
+        :param sample_target:
         :param epsilon:
         :param iterations:
         :return:
         '''
-        delta = torch.zeros_like(sample, requires_grad = True)
-        opt = optim.SGD([delta], lr = 1e-1)
+        delta = torch.zeros_like(sample, requires_grad = True).cuda()
+        print(delta.shape)
+        opt = optim.SGD([delta], lr = 0.1)
+        # self.model.eval()
+        for epoch in range(iterations):
 
-        for t in range(iterations):
-            pred = self.model(self.norm(sample + delta))
-            loss = -nn.CrossEntropyLoss()(pred, torch.LongTensor([341]))
-            if t % 5 == 0:
-                print(t, loss.item())
+            prediction = self.model(self.norm(sample + delta))
+            loss = -nn.CrossEntropyLoss()(prediction, sample_target)
+            if (epoch + 1) % 5 == 0:
+                # print(delta[0][0])
+                print(epoch + 1, loss.item())
+                # print("dfgh")
 
             opt.zero_grad()
             loss.backward()
             opt.step()
             delta.data.clamp_(-epsilon, epsilon)
-
-        print("True class probability:", nn.Softmax(dim=1)(pred)[0, 341].item())
+        print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
+        return delta
 
 
     def save_model(self, path):
@@ -186,6 +198,7 @@ if __name__ == "__main__":
                                         norm = my_morm,
                                         model = my_model,
                                         batch_size = experiment_settings["batch_size"],
+                                        milestones = [135, 230, 300],
                                         lr = experiment_settings["lr"],
                                         scale = 1.0,
                                         is_BN = True,

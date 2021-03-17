@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torchvision
 from torchsummary import summary
-
+import argparse
 
 class two_layer_CNN(nn.Module):
 
@@ -76,7 +76,31 @@ class myResNet18(nn.Module):
         return x
 
 if __name__ == "__main__":
-    my_resnet = myResNet18(pretrained = False, num_classes = 10)
-    my_two_layer_CNN = two_layer_CNN(input_channels = 3, first_padding = 0, num_classes = 10)
-    # summary(my_resnet, input_size = (3, 32, 32))
-    summary(my_two_layer_CNN, input_size = (3, 32, 32))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("echo", help = "echo the string you use here!")
+    parser.add_argument("square", help = "print the square value.", type = float)
+    parser.add_argument("--verbosity", help = "increase the verbosity.")
+    parser.add_argument("-g", "--use_gpu", help = "use gpu or not.", action = "store_true")
+    parser.add_argument("--dataset", help = "choose a dataset.", type = int, choices = [0, 1, 2])
+    args = parser.parse_args()
+    print(args)
+    print(args.echo)
+    print(args.square ** 2)
+    if args.verbosity:
+        print("verbosity turned on")
+    else:
+        print("verbosity is not turned on")
+    if args.use_gpu:
+        print("we are using gpu!")
+    else:
+        print("we are not using gpu!")
+    if args.dataset == 0:
+        print("cifar10")
+    elif args.dataset == 1:
+        print("cifar100")
+    elif args.dataset == 2:
+        print("imagenet")
+    # my_resnet = myResNet18(pretrained = False, num_classes = 10)
+    # my_two_layer_CNN = two_layer_CNN(input_channels = 3, first_padding = 0, num_classes = 10)
+    # # summary(my_resnet, input_size = (3, 32, 32))
+    # summary(my_two_layer_CNN, input_size = (3, 32, 32))

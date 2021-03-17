@@ -8,8 +8,12 @@ import numpy as np
 import pdb
 
 class Normalize(nn.Module):
+
     # Using mean and std calculated from ImageNet as default
     # ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    # tensor([0.4914, 0.4822, 0.4465], dtype=torch.float64)
+    # tensor([0.2470, 0.2435, 0.2616], dtype=torch.float64)
+
     def __init__(self, mean = torch.Tensor([0.485, 0.456, 0.406]), std = torch.Tensor([0.229, 0.224, 0.225])):
         super(Normalize, self).__init__()
         self.mean = mean
@@ -29,9 +33,9 @@ def my_transform(new_size = 224):
         transforms.ToTensor(),
         ])
 
-def train_transform():
+def train_transform(image_size = 32):
     return transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
+        transforms.RandomCrop(image_size, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         ])
@@ -54,8 +58,8 @@ class My_Dataset(Dataset):
             # self.data = np.expand_dims(Dataset.data.numpy(), axis = 3).repeat(3, axis = 3)
             self.data = Dataset.data.numpy()
 
-        if len(self.data.shape) < 4:
-            self.data = self.data[:, :, :, None]
+        # if len(self.data.shape) < 4:
+        #     self.data = self.data[:, :, :, None]
 
         self.targets = Dataset.targets
         # we don't need mean & std here because we shouldn't normalize data here, see https://adversarial-ml-tutorial.org/introduction/
@@ -70,7 +74,7 @@ class My_Dataset(Dataset):
 
     def __getitem__(self, idx):
 
-        ndarray_image = self.data[idx, :, :, :]
+        ndarray_image = self.data[idx]
         PIL_image = Image.fromarray(ndarray_image.astype(np.uint8))
         transform_image = self.transform(PIL_image)
         target_class = self.targets[idx]
@@ -82,9 +86,13 @@ class My_Dataset(Dataset):
         :param dataset: ndarray of shape [B, W, H, C]
         :return: mean & std tensor of three channels
         '''
-        self.mean = torch.from_numpy(np.mean(self.data, axis = 3))
-        self.std = torch.from_numpy(np.std(self.data, axis=3, ddof = 1)) # using Bessel’s correction to do the unbiased estimation
-        return self.mean, self.std
+
+        self.mean = torch.mean(torch.from_numpy(self.data.astype(np.float)), dim = [0, 1, 2])
+        self.std = torch.std(torch.from_numpy(self.data.astype(np.float)), dim = [0, 1, 2], unbiased = True) # using Bessel’s correction to do the unbiased estimation
+        if len(self.data.shape) < 4:
+            self.mean = torch.Tensor([self.mean.item()])
+            self.std = torch.Tensor([self.std.item()])
+        return self.mean / 255.0, self.std / 255.0
 
 def visualize(data_array):
     plt.imshow(data_array)
@@ -92,10 +100,14 @@ def visualize(data_array):
 
 if __name__ == "__main__":
     a = torch.Tensor([2, 3, 4, 5])
-    b = np.array([[1, 2, 3, 4], [2, 3, 4, 5]])
-    print(np.expand_dims(b, axis = 2).repeat(3, axis = 0))
-    print(np.newaxis)
-    print(len(b[:, None, :, None].shape))
-    print(len(b.shape))
-    print(isinstance(a, np.ndarray))
+    print(torch.Tensor(5))
+
+    b = torch.Tensor([[[1, 2, 3, 4], [2, 3, 4, 5]]])
+    print(b - torch.Tensor([2]).type_as(b)[:, None, None])
+    print(b[0])
+    # print(np.expand_dims(b, axis = 2).repeat(3, axis = 0))
+    # print(np.newaxis)
+    # print(len(b[:, None, :, None].shape))
+    # print(len(b.shape))
+    # print(isinstance(a, np.ndarray))
     # print(torch.from_numpy(a))

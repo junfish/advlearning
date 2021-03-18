@@ -129,7 +129,7 @@ class Experiment_Operator(object):
         testing_loss /= (len(self.test_loaders) * self.batch_size)
         return training_loss, testing_loss, training_acc, testing_acc
 
-    def sample_attack_train(self, sample, sample_target, epsilon = 2.0 / 255, iterations = 50):
+    def sample_attack_train(self, sample, sample_target, epsilon = 2.0 / 255, iterations = 50, targeted_attack = -1):
         '''
         :param sample:
         :param sample_target:
@@ -138,13 +138,17 @@ class Experiment_Operator(object):
         :return:
         '''
         delta = torch.zeros_like(sample, requires_grad = True).cuda()
-        print(delta.shape)
-        opt = optim.SGD([delta], lr = 0.1)
+        opt = optim.SGD([delta], lr = self.lr)
         # self.model.eval()
+        print("Learning the perturbation delta...")
         for epoch in range(iterations):
 
             prediction = self.model(self.norm(sample + delta))
-            loss = -nn.CrossEntropyLoss()(prediction, sample_target)
+            if targeted_attack == -1:
+                loss = -nn.CrossEntropyLoss()(prediction, sample_target)
+            else:
+                loss = (-nn.CrossEntropyLoss()(prediction, sample_target) +
+                        nn.CrossEntropyLoss()(prediction, torch.LongTensor([targeted_attack])))
             if (epoch + 1) % 5 == 0:
                 # print(delta[0][0])
                 print(epoch + 1, loss.item())
@@ -154,7 +158,9 @@ class Experiment_Operator(object):
             loss.backward()
             opt.step()
             delta.data.clamp_(-epsilon, epsilon)
+        print("After perturbation:")
         print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
+        print("Predictive class:", prediction.max(dim=1)[1].item())
         return delta
 
 

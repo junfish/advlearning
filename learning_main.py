@@ -98,4 +98,4 @@ if __name__ == "__main__":
                                         is_gpu = True)
     print("Start training...")
     experiment_op.train(iterations = args.iterations)
-    experiment_op.save_model(path = "model_weights/mnist-2layer-cnn.pth")
+    experiment_op.save_model(path = "model_weights/cifar10-resnet18.pth")

@@ -137,7 +137,9 @@ class Experiment_Operator(object):
         :param iterations:
         :return:
         '''
-        delta = torch.zeros_like(sample, requires_grad = True).cuda()
+        # delta = torch.rand_like(sample, requires_grad = True).cuda()
+        delta = torch.zeros_like(sample, requires_grad=True).cuda()
+        delta.data.clamp_(-epsilon, epsilon)
         opt = optim.SGD([delta], lr = self.lr)
         # self.model.eval()
         print("Learning the perturbation delta...")
@@ -148,7 +150,7 @@ class Experiment_Operator(object):
                 loss = -nn.CrossEntropyLoss()(prediction, sample_target)
             else:
                 loss = (-nn.CrossEntropyLoss()(prediction, sample_target) +
-                        nn.CrossEntropyLoss()(prediction, torch.LongTensor([targeted_attack])))
+                        nn.CrossEntropyLoss()(prediction, targeted_attack))
             if (epoch + 1) % 5 == 0:
                 # print(delta[0][0])
                 print(epoch + 1, loss.item())
@@ -161,6 +163,7 @@ class Experiment_Operator(object):
         print("After perturbation:")
         print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
         print("Predictive class:", prediction.max(dim=1)[1].item())
+        print("Highest class probability:", nn.Softmax(dim=1)(prediction)[0, prediction.max(dim=1)[1].item()].item())
         return delta
 
 

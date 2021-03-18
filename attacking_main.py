@@ -29,7 +29,7 @@ if __name__ == "__main__":
         num_channels = 3
         num_paddings = 1
         my_morm = Normalize()
-    elif args.mdoel == 0:
+    elif args.dataset == 0:
         print("Loading mnist to the memory...")
         train_dset = datasets.MNIST(root='./datasets', train=True, download=False)
         test_dset = datasets.MNIST(root='./datasets', train=False, download=False)
@@ -39,18 +39,20 @@ if __name__ == "__main__":
     if args.model == 1:
         print("Initialize ResNet18...")
         my_model = base_model.myResNet18(pretrained=False, input_channels=num_channels, first_padding=num_paddings, num_classes=10)
-    elif args.dataset == 0:
+    elif args.model == 0:
         print("Initialize 2 Layer CNN...")
         my_model = base_model.two_layer_CNN(input_channels=num_channels, first_padding=num_paddings, num_classes=10)
 
-    any_picture = test_dset.data[args.sample] # 26,
+    if isinstance(test_dset.data, np.ndarray):
+        any_picture = test_dset.data[args.sample]
+    else:
+        any_picture = test_dset.data[args.sample].numpy()
     any_picture_target = test_dset.targets[args.sample]
     PIL_any_picture = Image.fromarray(any_picture.astype(np.uint8))
     transform_image = test_transform()(PIL_any_picture)[None, :, :, :]
     print("The chosen picture's idx and class are as below:")
     print(any_picture_target)
     print(test_dset.classes[any_picture_target])
-
     print("Visualize this picture:")
     visualize(any_picture)
 
@@ -75,7 +77,16 @@ if __name__ == "__main__":
                                         is_BN=True,
                                         is_gpu=True)
     print("Loading learned parameters.")
-    experiment_op.load_model(path = "model_weights/cifar10-imagenet-resnet18.pth")
+    # "model_weights/cifar10-imagenet-resnet18.pth"
+    if args.dataset == 0 and args.model == 0:
+        model_weights_path = "model_weights/mnist-2layer-cnn.pth"
+    elif args.dataset == 0 and args.model == 1:
+        model_weights_path = "model_weights/mnist-resnet18.pth"
+    elif args.dataset == 1 and args.model == 0:
+        model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
+    elif args.dataset == 1 and args.model == 1:
+        model_weights_path = "model_weights/cifar10-imagenet-resnet18.pth"
+    experiment_op.load_model(path = model_weights_path)
     training_loss, testing_loss, training_acc, testing_acc = experiment_op.test()
     print("Print model's performance: training_accuracy = %.4f, testing_accuracy = %.4f" % (training_acc, testing_acc))
     print("                           training_loss = %.6f, testing_loss = %.6f" % (training_loss, testing_loss))
@@ -93,10 +104,10 @@ if __name__ == "__main__":
                                               torch.LongTensor([any_picture_target]).cuda(),
                                               epsilon=2.0 / 255,
                                               iterations=50,
-                                              targeted_attack=args.target)
+                                              targeted_attack=torch.LongTensor([args.target]).cuda())
 
     print("Visualization of delta:")
-    visualize((50 * delta.detach().cpu().numpy() + 0.5)[0].transpose(1, 2, 0))
+    visualize(np.squeeze((50 * delta.detach().cpu().numpy() + 0.5)[0].transpose(1, 2, 0)))
     print("Visualization of sample+delta:")
-    visualize((transform_image + delta.detach().cpu())[0].numpy().transpose(1, 2, 0))
+    visualize(np.squeeze((transform_image + delta.detach().cpu())[0].numpy().transpose(1, 2, 0)))
 

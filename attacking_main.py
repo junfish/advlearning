@@ -8,6 +8,8 @@ from PIL import Image
 from data_process import *
 from experiment_operator import Experiment_Operator
 
+
+
 if __name__ == "__main__":
     # experiment_settings = {"dataset": "cifar10", "batch_size": 100, "lr": 0.1}
 
@@ -19,6 +21,7 @@ if __name__ == "__main__":
     parser.add_argument("-b", "--batch_size", type = int, default = 100, help = "set a batch size for the data loader")
     parser.add_argument("-s", "--sample", type = int, default = 26, help=
                         "give a number to choose a picture from the testing dataset")
+    parser.add_argument("-p", "--pgd", default = False, action = "store_true", help = "using PGD or not")
     parser.add_argument("-t", "--target", type=int, default=-1, help="give a targeted class to attack our model")
     args = parser.parse_args()
 
@@ -76,7 +79,7 @@ if __name__ == "__main__":
                                         scale=1.0,
                                         is_BN=True,
                                         is_gpu=True)
-    print("Loading learned parameters.")
+    print("Loading learned parameters...")
     # "model_weights/cifar10-imagenet-resnet18.pth"
     if args.dataset == 0 and args.model == 0:
         model_weights_path = "model_weights/mnist-2layer-cnn.pth"
@@ -85,7 +88,7 @@ if __name__ == "__main__":
     elif args.dataset == 1 and args.model == 0:
         model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
     elif args.dataset == 1 and args.model == 1:
-        model_weights_path = "model_weights/cifar10-imagenet-resnet18.pth"
+        model_weights_path = "model_weights/cifar10-resnet18.pth"
     experiment_op.load_model(path = model_weights_path)
     training_loss, testing_loss, training_acc, testing_acc = experiment_op.test()
     print("Print model's performance: training_accuracy = %.4f, testing_accuracy = %.4f" % (training_acc, testing_acc))
@@ -100,14 +103,28 @@ if __name__ == "__main__":
     print("Predictive class:", pred.max(dim = 1)[1].item())
 
     print("Start attacking...")
-    delta = experiment_op.sample_attack_train(transform_image.cuda(),
-                                              torch.LongTensor([any_picture_target]).cuda(),
-                                              epsilon=2.0 / 255,
-                                              iterations=50,
-                                              targeted_attack=torch.LongTensor([args.target]).cuda())
 
-    print("Visualization of delta:")
-    visualize(np.squeeze((50 * delta.detach().cpu().numpy() + 0.5)[0].transpose(1, 2, 0)))
-    print("Visualization of sample+delta:")
-    visualize(np.squeeze((transform_image + delta.detach().cpu())[0].numpy().transpose(1, 2, 0)))
+    # PGD
+    if args.pgd == True:
+        delta, new_class = experiment_op.sample_attack_train(transform_image.cuda(),
+                                                  torch.LongTensor([any_picture_target]).cuda(),
+                                                  constrain = True,
+                                                  epsilon=2.0 / 255,
+                                                  iterations=50,
+                                                  targeted_attack=torch.LongTensor([args.target]).cuda())
 
+        print("Visualization of delta:")
+        visualize(np.squeeze((50 * delta.detach().cpu().numpy() + 0.5)[0].transpose(1, 2, 0)))
+        print("Visualization of sample+delta:")
+        visualize(np.squeeze((transform_image + delta.detach().cpu())[0].numpy().transpose(1, 2, 0)))
+
+    # FGSM
+    else:
+        gradient_sign, perturbed_sample, new_class = experiment_op.FGSM_attack(transform_image.cuda(),
+                                                                    torch.LongTensor([any_picture_target]).cuda(),
+                                                                    epsilon = 0.01
+                                                                    )
+        print("Visualization of sign(gradient):")
+        visualize(np.squeeze((gradient_sign.detach().cpu().numpy())[0].transpose(1, 2, 0)))
+        print("Visualization of perturbed sample:")
+        visualize(np.squeeze(perturbed_sample.detach().cpu().numpy()[0].transpose(1, 2, 0)))

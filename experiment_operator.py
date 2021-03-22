@@ -5,6 +5,7 @@ import torch.optim as optim
 import torch.utils.data as data
 import base_model
 import pdb
+import numpy as np
 from torchvision import transforms, datasets
 from torch.autograd import Variable
 from PIL import Image
@@ -48,11 +49,11 @@ class Experiment_Operator(object):
         self.criterion = nn.CrossEntropyLoss()
 
         if target_parameters:
-            self.optimizer = optim.SGD(target_parameters, lr = self.scale * self.lr, momentum = 0.9, weight_decay = 1e-5)
+            self.optimizer = optim.SGD(target_parameters, lr = self.scale * self.lr, momentum = 0.9) # weight_decay = 1e-4
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
             self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = self.milestones, gamma = 0.1)
         else:
-            self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum = 0.9, weight_decay = 1e-4)
+            self.optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum = 0.9, weight_decay = 1e-4) # weight_decay = 1e-4
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
             self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = self.milestones, gamma = 0.1)
 
@@ -83,6 +84,40 @@ class Experiment_Operator(object):
             print("Epoch %03d: training_accuracy = %.4f, testing_accuracy = %.4f" % (epoch + 1, training_acc, testing_acc))
             print("           training_loss = %.6f, testing_loss = %.6f" % (training_loss, testing_loss))
         print("Finished Training after %03d iterations" % iterations)
+
+    def robust_train(self, iterations = 100):
+        '''
+        :param iterations: training iterations
+        :return: nothing
+        '''
+        # self.model.train()
+        for epoch in range(iterations):
+            for data in self.train_loaders:
+                images, images_target = data
+                perturbed_images = []
+                for (image, image_target) in zip(images, images_target):
+                    image = image[None, :, :, :].cuda()
+                    image_target = torch.LongTensor([image_target.data]).cuda()
+                    gradient_sign, perturbed_sample, _ = self.FGSM_attack(image,
+                                                                          image_target,
+                                                                          epsilon = 0.0,
+                                                                          print_info = False)
+                    perturbed_images.append(perturbed_sample.detach().cpu().numpy()[0])
+                perturbed_images_tensor = torch.from_numpy(np.array(perturbed_images)).cuda()
+                images_target = images_target.cuda()
+                # pdb.set_trace()
+                self.optimizer.zero_grad()
+                outputs = self.model(self.norm(perturbed_images_tensor))
+                batch_loss = self.criterion(outputs, images_target) # outputs is one-hot code, and labels is the number of class.
+                batch_loss.backward()
+                self.optimizer.step()
+            self.handcraft_lr_scheduler.step()
+            training_loss, testing_loss, training_acc, testing_acc = self.test()
+            print("Learning Rate = %.8f" % self.handcraft_lr_scheduler.get_last_lr()[0])
+            print("Epoch %03d: training_accuracy = %.4f, testing_accuracy = %.4f" % (epoch + 1, training_acc, testing_acc))
+            print("           training_loss = %.6f, testing_loss = %.6f" % (training_loss, testing_loss))
+        print("Finished Training after %03d iterations" % iterations)
+
 
     def test(self):
         if self.is_BN:
@@ -129,7 +164,33 @@ class Experiment_Operator(object):
         testing_loss /= (len(self.test_loaders) * self.batch_size)
         return training_loss, testing_loss, training_acc, testing_acc
 
-    def sample_attack_train(self, sample, sample_target, epsilon = 2.0 / 255, iterations = 50, targeted_attack = -1):
+    def FGSM_attack(self, sample, sample_target, epsilon = 0.1, print_info = True):
+        self.model.eval()
+        gradient_sign = self.compute_gradient(sample, sample_target).sign()
+        perturbed_sample = (sample + epsilon * gradient_sign).data#.clamp_(0, 1)
+        prediction = self.model(self.norm(perturbed_sample))
+        if print_info:
+            print("After perturbation:")
+            print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
+            print("Predictive class:", prediction.max(dim=1)[1].item())
+            print("Highest class probability:", nn.Softmax(dim=1)(prediction)[0, prediction.max(dim=1)[1].item()].item())
+        return gradient_sign, perturbed_sample, prediction.max(dim=1)[1].item()
+
+
+    def compute_gradient(self, x, y):
+        x.requires_grad = True
+
+        sgd_optimizer = optim.SGD([x], lr=self.lr, momentum=0.9)
+        sgd_optimizer.zero_grad()
+
+        output = self.model(self.norm(x))
+        loss = self.criterion(output, y)
+        loss.backward()
+        sgd_optimizer.step()
+        return x.grad
+
+
+    def sample_attack_train(self, sample, sample_target, constrain = True, epsilon = 0.1, iterations = 1000, targeted_attack = -1, print_info = True):
         '''
         :param sample:
         :param sample_target:
@@ -139,10 +200,11 @@ class Experiment_Operator(object):
         '''
         # delta = torch.rand_like(sample, requires_grad = True).cuda()
         delta = torch.zeros_like(sample, requires_grad=True).cuda()
-        delta.data.clamp_(-epsilon, epsilon)
+        # delta.data.clamp_(-epsilon, epsilon)
         opt = optim.SGD([delta], lr = self.lr)
         # self.model.eval()
-        print("Learning the perturbation delta...")
+        if print_info:
+            print("Learning the perturbation delta...")
         for epoch in range(iterations):
 
             prediction = self.model(self.norm(sample + delta))
@@ -151,7 +213,7 @@ class Experiment_Operator(object):
             else:
                 loss = (-nn.CrossEntropyLoss()(prediction, sample_target) +
                         nn.CrossEntropyLoss()(prediction, targeted_attack))
-            if (epoch + 1) % 5 == 0:
+            if (epoch + 1) % 5 == 0 and print_info:
                 # print(delta[0][0])
                 print(epoch + 1, loss.item())
                 # print("dfgh")
@@ -159,12 +221,14 @@ class Experiment_Operator(object):
             opt.zero_grad()
             loss.backward()
             opt.step()
-            delta.data.clamp_(-epsilon, epsilon)
-        print("After perturbation:")
-        print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
-        print("Predictive class:", prediction.max(dim=1)[1].item())
-        print("Highest class probability:", nn.Softmax(dim=1)(prediction)[0, prediction.max(dim=1)[1].item()].item())
-        return delta
+            if constrain:
+                delta.data.clamp_(-epsilon, epsilon)
+        if print_info:
+            print("After perturbation:")
+            print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
+            print("Predictive class:", prediction.max(dim=1)[1].item())
+            print("Highest class probability:", nn.Softmax(dim=1)(prediction)[0, prediction.max(dim=1)[1].item()].item())
+        return delta, prediction.max(dim=1)[1].item()
 
 
     def save_model(self, path):
@@ -173,19 +237,10 @@ class Experiment_Operator(object):
     def load_model(self, path):
         self.model.load_state_dict(torch.load(path))
 
-    def compute_gradient(self, x, y):
-        sgd_optimizer = optim.SGD(self.model.parameters(), lr = self.lr, momentum=0.9)
-        sgd_optimizer.zero_grad()
-        input = Variable(x, requires_grad = True).cuda()
-        label = Variable(y).cuda()
-        output = self.model(self.norm(input))
-        loss = self.criterion(output, label)
-        loss.backward()
-        sgd_optimizer.step()
-        return input.grad
+
 
 if __name__ == "__main__":
-    experiment_settings = {"dataset": "cifar10", "batch_size": 100, "lr": 0.1}
+    experiment_settings = {"dataset": "mnist", "batch_size": 100, "lr": 0.1}
 
     train_dset = datasets.CIFAR10(root='./datasets', train=True, download=False)
     test_dset = datasets.CIFAR10(root='./datasets', train=False, download=False)

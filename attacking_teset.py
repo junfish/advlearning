@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("-n", "--norm", type=int, default=0, help="choose the norm for normalization")
     parser.add_argument("-b", "--batch_size", type=int, default=100, help="set a batch size for the data loader")
     parser.add_argument("-p", "--pgd", default=False, action="store_true", help="using PGD or not")
+    parser.add_argument("-r", "--robust", default=False, action="store_true", help="using robust model or not")
     args = parser.parse_args()
 
     if args.dataset == 1:
@@ -62,21 +63,34 @@ if __name__ == "__main__":
     print("Loading learned parameters...")
     # "model_weights/cifar10-imagenet-resnet18.pth"
     if args.dataset == 0 and args.model == 0:
-        model_weights_path = "model_weights/mnist-2layer-cnn.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-mnist-2layer-cnn.pth"
+        else:
+            model_weights_path = "model_weights/mnist-2layer-cnn.pth"
+
     elif args.dataset == 0 and args.model == 1:
-        model_weights_path = "model_weights/mnist-resnet18.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-mnist-resnet18.pth"
+        else:
+            model_weights_path = "model_weights/mnist-resnet18.pth"
     elif args.dataset == 1 and args.model == 0:
-        model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-cifar10-2layer-cnn.pth"
+        else:
+            model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
     elif args.dataset == 1 and args.model == 1:
-        model_weights_path = "model_weights/cifar10-resnet18.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-cifar10-resnet18.pth"
+        else:
+            model_weights_path = "model_weights/cifar10-resnet18.pth"
     experiment_op.load_model(path = model_weights_path)
     training_loss, testing_loss, training_acc, testing_acc = experiment_op.test()
     print("Print model's performance: training_accuracy = %.4f, testing_accuracy = %.4f" % (training_acc, testing_acc))
     print("                           training_loss = %.6f, testing_loss = %.6f" % (training_loss, testing_loss))
 
-    # epsilons = [.0001, .001, .01, .05, .1, .2, .3, .5, 1.0]
-    # epsilons = [.1, .2, .3, .5, 1.0, 2.0]
-    epsilons = [10.0, 100, 1000, 10000, 100000]
+    # epsilons = [10, 100]
+    epsilons = [.001, .01, .05, .1, .2, .5, 1.0, 5.0]
+    # epsilons = [10.0, 100, 1000, 10000, 100000]
     for epsilon in epsilons:
         acc_count = 0
         for (i, data) in enumerate(experiment_op.test_loaders):
@@ -97,13 +111,11 @@ if __name__ == "__main__":
                 delta, new_class = experiment_op.sample_attack_train(input,
                                                                      label,
                                                                      constrain=True,
-                                                                     epsilon=4.0 / 255 * epsilon,
-                                                                     iterations=50,
+                                                                     epsilon=0.1,
+                                                                     iterations=30,
                                                                      print_info=False)
-
             # print(labels)
             # print(output_labels)
-
             if images_target.data == new_class:
                 acc_count += 1
         new_acc = acc_count / len(experiment_op.test_loaders)

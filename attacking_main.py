@@ -23,6 +23,7 @@ if __name__ == "__main__":
                         "give a number to choose a picture from the testing dataset")
     parser.add_argument("-p", "--pgd", default = False, action = "store_true", help = "using PGD or not")
     parser.add_argument("-t", "--target", type=int, default=-1, help="give a targeted class to attack our model")
+    parser.add_argument("-r", "--robust", default=False, action="store_true", help="using robust model or not")
     args = parser.parse_args()
 
     if args.dataset == 1:
@@ -82,13 +83,26 @@ if __name__ == "__main__":
     print("Loading learned parameters...")
     # "model_weights/cifar10-imagenet-resnet18.pth"
     if args.dataset == 0 and args.model == 0:
-        model_weights_path = "model_weights/mnist-2layer-cnn.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-mnist-2layer-cnn.pth"
+        else:
+            model_weights_path = "model_weights/mnist-2layer-cnn.pth"
+
     elif args.dataset == 0 and args.model == 1:
-        model_weights_path = "model_weights/mnist-resnet18.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-mnist-resnet18.pth"
+        else:
+            model_weights_path = "model_weights/mnist-resnet18.pth"
     elif args.dataset == 1 and args.model == 0:
-        model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-cifar10-2layer-cnn.pth"
+        else:
+            model_weights_path = "model_weights/cifar10-2layer-cnn.pth"
     elif args.dataset == 1 and args.model == 1:
-        model_weights_path = "model_weights/cifar10-resnet18.pth"
+        if args.robust:
+            model_weights_path = "model_weights/robust-cifar10-resnet18.pth"
+        else:
+            model_weights_path = "model_weights/cifar10-resnet18.pth"
     experiment_op.load_model(path = model_weights_path)
     training_loss, testing_loss, training_acc, testing_acc = experiment_op.test()
     print("Print model's performance: training_accuracy = %.4f, testing_accuracy = %.4f" % (training_acc, testing_acc))
@@ -109,14 +123,16 @@ if __name__ == "__main__":
         delta, new_class = experiment_op.sample_attack_train(transform_image.cuda(),
                                                   torch.LongTensor([any_picture_target]).cuda(),
                                                   constrain = True,
-                                                  epsilon=2.0 / 255,
+                                                  epsilon = 2.0 / 255,
                                                   iterations=50,
                                                   targeted_attack=torch.LongTensor([args.target]).cuda())
 
         print("Visualization of delta:")
         visualize(np.squeeze((50 * delta.detach().cpu().numpy() + 0.5)[0].transpose(1, 2, 0)))
         print("Visualization of sample+delta:")
-        visualize(np.squeeze((transform_image + delta.detach().cpu())[0].numpy().transpose(1, 2, 0)))
+        visualize(np.squeeze((transform_image + delta.detach().cpu()/10/args.lr)[0].numpy().transpose(1, 2, 0)))
+        np.save('pertubation.npy', delta.detach().cpu().numpy())
+        print(delta.detach().cpu().numpy()[0, 0, :, 0])
 
     # FGSM
     else:

@@ -44,7 +44,7 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iterations", type = int, default = 100, help = "the total number of epoch for the training")
     parser.add_argument("-s", "--schedule_intervals", nargs = "+", type = int,
                         help = "intervals to degrade learning rate\n"
-                               "e.x., recommendation: start at lr = 0.1, intervals = [135, 230, 300], divided by 10, for cifar10 & resnet18")
+                               "e.g., recommendation: start at lr = 0.1, intervals = [135, 230, 300], divided by 10, for cifar10 & resnet18")
 
     # parser.add_argument("")
     args = parser.parse_args()
@@ -97,5 +97,5 @@ if __name__ == "__main__":
                                         is_BN = True,
                                         is_gpu = True)
     print("Start training...")
-    experiment_op.train(iterations = args.iterations)
+    experiment_op.my_train(iterations = args.iterations)
     experiment_op.save_model(path = "model_weights/cifar10-resnet18.pth")

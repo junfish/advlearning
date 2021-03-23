@@ -57,7 +57,7 @@ class Experiment_Operator(object):
             self.exp_lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size = 20, gamma = 0.1)
             self.handcraft_lr_scheduler = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones = self.milestones, gamma = 0.1)
 
-    def train(self, iterations = 100):
+    def my_train(self, iterations = 100):
         '''
         :param iterations: training iterations
         :return: nothing
@@ -67,11 +67,11 @@ class Experiment_Operator(object):
             for (i, data) in enumerate(self.train_loaders):
                 images, images_target = data
                 if self.is_gpu:
-                    inputs = Variable(images).cuda()
-                    labels = Variable(images_target).cuda()
+                    inputs = images.cuda()
+                    labels = images_target.cuda()
                 else:
-                    inputs = Variable(images)
-                    labels = Variable(images_target)
+                    inputs = images
+                    labels = images_target
 
                 self.optimizer.zero_grad()
                 outputs = self.model(self.norm(inputs))
@@ -90,8 +90,11 @@ class Experiment_Operator(object):
         :param iterations: training iterations
         :return: nothing
         '''
-        # self.model.train()
+
         for epoch in range(iterations):
+            print("Standard Learning...")
+            self.my_train(iterations = 1)
+            print("Adversarial Learning...")
             for data in self.train_loaders:
                 images, images_target = data
                 perturbed_images = []
@@ -100,7 +103,7 @@ class Experiment_Operator(object):
                     image_target = torch.LongTensor([image_target.data]).cuda()
                     gradient_sign, perturbed_sample, _ = self.FGSM_attack(image,
                                                                           image_target,
-                                                                          epsilon = 0.0,
+                                                                          epsilon = 0.05,
                                                                           print_info = False)
                     perturbed_images.append(perturbed_sample.detach().cpu().numpy()[0])
                 perturbed_images_tensor = torch.from_numpy(np.array(perturbed_images)).cuda()
@@ -166,8 +169,12 @@ class Experiment_Operator(object):
 
     def FGSM_attack(self, sample, sample_target, epsilon = 0.1, print_info = True):
         self.model.eval()
+        # delta = torch.zeros_like(sample, requires_grad=True)
+        # loss = nn.CrossEntropyLoss()(self.model(sample + delta), sample_target)
+        # loss.backward()
+        # return epsilon * delta.grad.detach().sign()
         gradient_sign = self.compute_gradient(sample, sample_target).sign()
-        perturbed_sample = (sample + epsilon * gradient_sign).data#.clamp_(0, 1)
+        perturbed_sample = (sample + epsilon * gradient_sign).data.clamp_(0, 1)
         prediction = self.model(self.norm(perturbed_sample))
         if print_info:
             print("After perturbation:")
@@ -190,7 +197,7 @@ class Experiment_Operator(object):
         return x.grad
 
 
-    def sample_attack_train(self, sample, sample_target, constrain = True, epsilon = 0.1, iterations = 1000, targeted_attack = -1, print_info = True):
+    def sample_attack_train(self, sample, sample_target, constrain = True, epsilon = 0.01, iterations = 40, targeted_attack = -1, print_info = True):
         '''
         :param sample:
         :param sample_target:
@@ -199,6 +206,7 @@ class Experiment_Operator(object):
         :return:
         '''
         # delta = torch.rand_like(sample, requires_grad = True).cuda()
+        print("!")
         delta = torch.zeros_like(sample, requires_grad=True).cuda()
         # delta.data.clamp_(-epsilon, epsilon)
         opt = optim.SGD([delta], lr = self.lr)
@@ -206,7 +214,7 @@ class Experiment_Operator(object):
         if print_info:
             print("Learning the perturbation delta...")
         for epoch in range(iterations):
-
+            opt.zero_grad()
             prediction = self.model(self.norm(sample + delta))
             if targeted_attack == -1:
                 loss = -nn.CrossEntropyLoss()(prediction, sample_target)
@@ -217,12 +225,12 @@ class Experiment_Operator(object):
                 # print(delta[0][0])
                 print(epoch + 1, loss.item())
                 # print("dfgh")
-
-            opt.zero_grad()
-            loss.backward()
-            opt.step()
             if constrain:
                 delta.data.clamp_(-epsilon, epsilon)
+
+            loss.backward()
+            opt.step()
+
         if print_info:
             print("After perturbation:")
             print("True class probability:", nn.Softmax(dim=1)(prediction)[0, sample_target].item())
@@ -267,6 +275,6 @@ if __name__ == "__main__":
                                         scale = 1.0,
                                         is_BN = True,
                                         is_gpu = True)
-    experiment_op.train(iterations = 100)
+    experiment_op.my_train(iterations = 100)
     experiment_op.save_model(path = "model_weights/cifar10-resnet18.pth")
 
